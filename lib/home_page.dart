@@ -1,6 +1,7 @@
-import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'state_manager.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -11,27 +12,46 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   String text = "Stop service";
-  int okCount = 9;
-  int notOkCount = 0;
+  int okCount = StateManager().okCount;
+  int notOkCount = StateManager().notOkCount;
 
   @override
   void initState() {
     super.initState();
     _loadCounts();
+    StateManager().addListener(_updateCounts);
+  }
+
+  @override
+  void dispose() {
+    StateManager().removeListener(_updateCounts);
+    super.dispose();
   }
 
   _loadCounts() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     setState(() {
-      okCount = (prefs.getInt('okCount') ?? 0);
-      notOkCount = (prefs.getInt('notOkCount') ?? 0);
-      print("okCount : ${okCount} , ontOkCount : ${notOkCount}");
+      StateManager().updateCounts(
+        prefs.getInt('okCount') ?? 0,
+        prefs.getInt('notOkCount') ?? 0,
+      );
     });
   }
 
+  void _updateCounts() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    setState(() {
+      okCount = prefs.getInt('okCount') ?? okCount;
+      notOkCount = prefs.getInt('notOkCount') ?? notOkCount;
+      // Explicitly update the UI with the latest counts
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
+    // int okCount = StateManager().okCount;
+    // int notOkCount = StateManager().notOkCount;
+
     return Scaffold(
       body: Center(
         child: Column(
@@ -39,29 +59,23 @@ class _HomePageState extends State<HomePage> {
           children: [
             ElevatedButton(onPressed: (){
               FlutterBackgroundService().invoke('setAsForeground');
-            }, child: Text("Successful request : ${okCount}")),
+            }, child: Text("Successful request : $okCount")),
             ElevatedButton(onPressed: (){
               FlutterBackgroundService().invoke('setAsBackground');
-            }, child: Text("Unsuccessful request : ${notOkCount}")),
-            ElevatedButton(onPressed: () async{
+            }, child: Text("Unsuccessful request : $notOkCount")),
+            ElevatedButton(onPressed: () async {
               final service = FlutterBackgroundService();
               bool isRunning = await service.isRunning();
-              if(isRunning) {
+              if (isRunning) {
                 service.invoke("stopService");
-
-              }else {
+              } else {
                 service.startService();
               }
 
-              if(!isRunning) {
-                text = "Stop Service";
-              }else {
-                text = "Start Service";
-              }
               setState(() {
-
+                text = isRunning ? "Start Service" : "Stop Service";
               });
-            }, child: Text("${text}")),
+            }, child: Text("$text")),
           ],
         ),
       ),
